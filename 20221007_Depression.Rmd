@@ -1,0 +1,219 @@
+---
+title: "Can k-mean clustering evaluates psychological questionnaires better than human? "
+author: "Melina Mazloum, Ali Rahjouei"
+date: "8/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Loading libraries
+```{r LoadingLibraries, echo=F}
+library(tidyverse)
+library(xlsx)
+library(factoextra)
+library(reshape)
+library(corrplot)
+library(apcluster)
+```
+
+Loading data
+```{r LoadingData, echo=FALSE}
+dataset = read.xlsx(file="/home/arahjou/Downloads/Melina Thesis/Total_form_20220814_3.xlsx", 1, header = T)
+```
+
+## Comparing scores PHQ9_Score vs. GHQ28-Depression
+
+```{r}
+ggplot(dataset, aes(x=PHQ9_Score, y= GHQ_28_Depression)) + 
+  geom_point() + geom_smooth(method = lm)
+```
+
+## Classic
+
+```{r}
+#PHQ9
+library(ggplot2)
+mydata = dataset %>% group_by(PHQ9_Qualitative)  %>% count(PHQ9_Qualitative)
+mydata$PHQ9_Qualitative = factor(mydata$PHQ9_Qualitative, levels=c("Minimal", "Mild", "Mittelgradig", "Schwer"))
+ggplot(mydata, aes(x=PHQ9_Qualitative, y=n, fill=PHQ9_Qualitative)) + 
+  geom_col(color="black") + scale_fill_manual(values = c("#eb86dd","#2E9FDF", "#00AFBB", "#E7B800")) + theme_bw()
+
+## GHQ28-Depression
+
+mydata = dataset %>% group_by(GHQ_28_Depression_Qualitative)  %>% count(GHQ_28_Depression_Qualitative)
+mydata$GHQ_28_Depression_Qualitative = factor(mydata$GHQ_28_Depression_Qualitative, levels=c("Unauffällig", "Mittelgradig", "Schwer"))
+ggplot(mydata, aes(x=GHQ_28_Depression_Qualitative, y=n, fill=GHQ_28_Depression_Qualitative)) + 
+  geom_col(color="black") + scale_fill_manual(values = c("#eb86dd", "#00AFBB", "#E7B800")) + theme_bw()
+
+
+```
+
+
+## PHQ9
+
+```{r , echo=FALSE}
+mydata = dataset[, c(73:81)]
+rownames(mydata) = paste(dataset$ID ,dataset$PHQ9_Qualitative)
+for (i in 1:9){
+  mydata[,i] = as.numeric(unlist(mydata[,i]))
+}
+scaledata = scale(mydata)
+```
+
+## Clustring questions based on scores
+
+```{r , echo=FALSE}
+hc <- hclust(as.dist(1-cor(scaledata, method="spearman")), method="complete") # Clusters columns by Spearman correlation.
+TreeC = as.dendrogram(hc, method="average")
+plot(TreeC,
+     main = "Sample Clustering",
+     ylab = "Height")
+
+```
+
+
+
+## Making hierarchical and heatmap
+
+```{r, echo=F }
+#make the matrix
+dist <- cor(t(scaledata), method="pearson")
+#make the tree
+hr <- hclust(as.dist(1-dist), method="complete") # Cluster rows by Pearson correlation.
+```
+
+## Ploting all identified clusters
+
+```{r , echo=F}
+set.seed(20)
+kClust <- kmeans(scaledata, centers= 4, nstart = 1000, iter.max = 100)
+kClusters <- kClust$cluster
+
+```
+
+
+```{r , echo=F}
+# function to find centroid in cluster i
+clust.centroid = function(i, dat, clusters) {
+  ind = (clusters == i)
+  colMeans(dat[ind,])
+}
+kClustcentroids <- sapply(levels(factor(kClusters)), clust.centroid, scaledata, kClusters)
+```
+
+
+## Investigating clusters correlation
+
+```{r, echo=FALSE }
+corralation <- cor(kClustcentroids)
+corrplot(corralation, method="circle")
+corrplot(corralation, method="number")
+```
+
+## Visulaizing clusters
+
+```{r, echo=F}
+set.seed(123)
+res.km <- kmeans(scale(mydata), 4, nstart = 25)
+# K-means clusters showing the group of each individuals
+res.km$cluster
+
+
+fviz_cluster(res.km, data = mydata,
+             palette = c("#2E9FDF", "#00AFBB", "#E7B800", "#eb86dd"), 
+             geom = c("point", "text"),
+             ellipse.type = "convex", 
+             ggtheme = theme_bw()
+             )
+```
+
+
+```{r}
+result = factor(unname(res.km$cluster))
+
+result = summary(result)
+result = c(9, 17, 12, 22)
+
+names(result) = (c("Minimal", "Mild", "Mittelgradig", "schwer"))
+
+barplot((result), col= c("#eb86dd","#2E9FDF", "#00AFBB", "#E7B800"))
+
+```
+
+
+
+## GHQ28-Depression
+
+```{r , echo=FALSE}
+mydata = dataset[, c(111:117)]
+
+rownames(mydata) = paste(dataset$ID, dataset$GHQ_28_Depression_Qualitative)
+
+for (i in 1:7){
+  mydata[,i] = as.numeric(unlist(mydata[,i]))
+}
+
+scaledata = scale(mydata)
+```
+
+
+## Clustring questions based on scores
+
+```{r , echo=FALSE}
+hc <- hclust(as.dist(1-cor(scaledata, method="spearman")), method="complete") # Clusters columns by Spearman correlation.
+TreeC = as.dendrogram(hc, method="average")
+plot(TreeC,
+     main = "Sample Clustering",
+     ylab = "Height")
+
+```
+
+
+## Ploting all identified clusters
+
+```{r , echo=F}
+set.seed(20)
+kClust <- kmeans(scaledata, centers= 4, nstart = 1000, iter.max = 100)
+kClusters <- kClust$cluster
+
+```
+
+
+## Investigating clusters correlation
+
+```{r, echo=FALSE }
+corralation <- cor(kClustcentroids)
+corrplot(corralation, method="circle")
+corrplot(corralation, method="number")
+```
+
+## Visulaizing clusters based on test recommendation
+
+```{r, echo=F}
+set.seed(123)
+res.km <- kmeans(scale(mydata), 4, nstart = 25)
+# K-means clusters showing the group of each individuals
+res.km$cluster
+
+
+fviz_cluster(res.km, data = mydata,
+             palette = c("#eb86dd", "#E7B800","#00AFBB", "#2E9FDF"),
+             ggtheme = theme_bw())
+
+```
+
+```{r}
+result = factor(unname(res.km$cluster))
+
+result = summary(result)
+
+result = c(23, 14, 16, 7)
+names(result) = (c("unauffällig-1","unauffällig-2", "Mittelgradig", "schwer"))
+
+barplot(result, col=c("#eb86dd","#2E9FDF", "#00AFBB", "#E7B800"))
+```
+
+
